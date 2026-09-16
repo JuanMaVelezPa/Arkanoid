@@ -1,6 +1,6 @@
 # SPEC 02 - Block-breaking animation
 
-> **Status:** Draft
+> **Status:** Approved
 > **Depends on:** SPEC 01
 > **Date:** 2026-09-16
 > **Objective:** Polish the existing atlas brick-break explosion so every hit plays all 4 color-matched frames in the brick rect for 150ms.

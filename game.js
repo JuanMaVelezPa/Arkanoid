@@ -320,7 +320,7 @@ function spawnExplosion( brick ) {
     w: brick.w,
     h: brick.h,
     color: brick.color,
-    t0: performance.now(),
+    t0: lastTs,
   } );
 }
 
@@ -517,10 +517,7 @@ function drawExplosions( now ) {
     if ( elapsed >= EXPLOSION_DURATION ) continue;
     const frames = EXPLOSION_FRAMES[ exp.color ];
     if ( !frames || frames.length === 0 ) continue;
-    const idx = Math.min(
-      frames.length - 1,
-      Math.floor( ( elapsed / EXPLOSION_DURATION ) * frames.length )
-    );
+    const idx = Math.min( 3, Math.max( 0, Math.floor( ( elapsed / EXPLOSION_DURATION ) * 4 ) ) );
     drawFrame( ctx, frames[ idx ], exp.x, exp.y, exp.w, exp.h );
     explosions[ write++ ] = exp;
   }

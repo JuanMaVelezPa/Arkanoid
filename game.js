@@ -16,15 +16,20 @@ const BRICK_W = 32;
 const BRICK_H = 16;
 const BRICK_TOP = 48;
 const ROW_COLORS = [ 'red', 'yellow', 'cyan', 'magenta', 'hotpink', 'green' ];
+const POINTS_PER_BRICK = 10;
+const BALL_MAX_STEP = 8;
 
 const canvas = document.getElementById( 'game' );
 const ctx = canvas.getContext( '2d' );
 const stage = canvas.parentElement;
 
 const bounceSound = new Audio( 'assets/sounds/ball-bounce.mp3' );
+const breakSound = new Audio( 'assets/sounds/break-sound.mp3' );
+const scoreEl = document.getElementById( 'score' );
 
 const keys = Object.create( null );
 let serveQueued = false;
+let score = 0;
 
 const paddle = {
   x: ( CANVAS_W - PADDLE_W ) / 2,
@@ -44,6 +49,7 @@ const ball = {
 };
 
 const bricks = [];
+const explosions = [];
 
 function buildBricks() {
   bricks.length = 0;
@@ -82,9 +88,32 @@ function consumeServe() {
   return queued;
 }
 
+function playSound( audio ) {
+  audio.currentTime = 0;
+  audio.play().catch( () => {} );
+}
+
 function playBounce() {
-  bounceSound.currentTime = 0;
-  bounceSound.play().catch( () => {} );
+  playSound( bounceSound );
+}
+
+function playBreak() {
+  playSound( breakSound );
+}
+
+function writeScore() {
+  scoreEl.textContent = String( score );
+}
+
+function spawnExplosion( brick ) {
+  explosions.push( {
+    x: brick.x,
+    y: brick.y,
+    w: brick.w,
+    h: brick.h,
+    color: brick.color,
+    t0: performance.now(),
+  } );
 }
 
 function glueBall() {
@@ -120,6 +149,82 @@ function bounceOffPaddle() {
   playBounce();
 }
 
+function reverseCollidingAxis( brick, prevX, prevY ) {
+  const fromLeft = prevX + ball.w <= brick.x;
+  const fromRight = prevX >= brick.x + brick.w;
+  const fromTop = prevY + ball.h <= brick.y;
+  const fromBottom = prevY >= brick.y + brick.h;
+
+  if ( fromLeft || fromRight ) {
+    ball.vx = fromLeft ? -Math.abs( ball.vx ) : Math.abs( ball.vx );
+    ball.x = fromLeft ? brick.x - ball.w : brick.x + brick.w;
+  }
+  if ( fromTop || fromBottom ) {
+    ball.vy = fromTop ? -Math.abs( ball.vy ) : Math.abs( ball.vy );
+    ball.y = fromTop ? brick.y - ball.h : brick.y + brick.h;
+  }
+  if ( fromLeft || fromRight || fromTop || fromBottom ) return;
+
+  const overlapX = Math.min( ball.x + ball.w, brick.x + brick.w ) - Math.max( ball.x, brick.x );
+  const overlapY = Math.min( ball.y + ball.h, brick.y + brick.h ) - Math.max( ball.y, brick.y );
+  if ( overlapX < overlapY ) {
+    ball.vx *= -1;
+  } else {
+    ball.vy *= -1;
+  }
+}
+
+function hitBrick( brick, prevX, prevY ) {
+  brick.alive = false;
+  spawnExplosion( brick );
+  score += POINTS_PER_BRICK;
+  writeScore();
+  playBreak();
+  playBounce();
+  reverseCollidingAxis( brick, prevX, prevY );
+}
+
+function collideBricks( prevX, prevY ) {
+  for ( let i = 0; i < bricks.length; i++ ) {
+    const brick = bricks[ i ];
+    if ( !brick.alive ) continue;
+    if ( !aabb( ball, brick ) ) continue;
+    hitBrick( brick, prevX, prevY );
+    return;
+  }
+}
+
+function collideWalls() {
+  if ( ball.x <= 0 ) {
+    ball.x = 0;
+    ball.vx = Math.abs( ball.vx );
+    playBounce();
+  } else if ( ball.x + ball.w >= CANVAS_W ) {
+    ball.x = CANVAS_W - ball.w;
+    ball.vx = -Math.abs( ball.vx );
+    playBounce();
+  }
+
+  if ( ball.y <= 0 ) {
+    ball.y = 0;
+    ball.vy = Math.abs( ball.vy );
+    playBounce();
+  } else if ( ball.y + ball.h >= CANVAS_H ) {
+    glueBall();
+  }
+}
+
+function stepBall( stepDt ) {
+  const prevX = ball.x;
+  const prevY = ball.y;
+  ball.x += ball.vx * stepDt;
+  ball.y += ball.vy * stepDt;
+  collideWalls();
+  if ( ball.glued ) return;
+  collideBricks( prevX, prevY );
+  if ( ball.vy > 0 && aabb( ball, paddle ) ) bounceOffPaddle();
+}
+
 function update( dt ) {
   let dir = 0;
   if ( isHeld( 'ArrowLeft' ) || isHeld( 'KeyA' ) ) dir -= 1;
@@ -137,29 +242,13 @@ function update( dt ) {
     return;
   }
 
-  ball.x += ball.vx * dt;
-  ball.y += ball.vy * dt;
-
-  if ( ball.x <= 0 ) {
-    ball.x = 0;
-    ball.vx = Math.abs( ball.vx );
-    playBounce();
-  } else if ( ball.x + ball.w >= CANVAS_W ) {
-    ball.x = CANVAS_W - ball.w;
-    ball.vx = -Math.abs( ball.vx );
-    playBounce();
+  const dist = Math.hypot( ball.vx * dt, ball.vy * dt );
+  const steps = Math.max( 1, Math.ceil( dist / BALL_MAX_STEP ) );
+  const stepDt = dt / steps;
+  for ( let i = 0; i < steps; i++ ) {
+    stepBall( stepDt );
+    if ( ball.glued ) return;
   }
-
-  if ( ball.y <= 0 ) {
-    ball.y = 0;
-    ball.vy = Math.abs( ball.vy );
-    playBounce();
-  } else if ( ball.y + ball.h >= CANVAS_H ) {
-    glueBall();
-    return;
-  }
-
-  if ( ball.vy > 0 && aabb( ball, paddle ) ) bounceOffPaddle();
 }
 
 function clearPlayfield() {
@@ -175,9 +264,27 @@ function drawBricks() {
   }
 }
 
-function draw() {
+function drawExplosions( now ) {
+  let write = 0;
+  for ( let i = 0; i < explosions.length; i++ ) {
+    const exp = explosions[ i ];
+    const elapsed = now - exp.t0;
+    if ( elapsed >= EXPLOSION_DURATION ) continue;
+    const frames = EXPLOSION_FRAMES[ exp.color ];
+    const idx = Math.min(
+      frames.length - 1,
+      Math.floor( ( elapsed / EXPLOSION_DURATION ) * frames.length )
+    );
+    drawFrame( ctx, frames[ idx ], exp.x, exp.y, exp.w, exp.h );
+    explosions[ write++ ] = exp;
+  }
+  explosions.length = write;
+}
+
+function draw( now ) {
   clearPlayfield();
   drawBricks();
+  drawExplosions( now );
   drawSprite( ctx, 'paddle', paddle.x, paddle.y, paddle.w, paddle.h );
   drawSprite( ctx, 'ball', ball.x, ball.y, ball.w, ball.h );
 }
@@ -189,7 +296,7 @@ function loop( ts ) {
   const dt = Math.min( ( ts - lastTs ) / 1000, 0.05 );
   lastTs = ts;
   update( dt );
-  draw();
+  draw( ts );
   requestAnimationFrame( loop );
 }
 

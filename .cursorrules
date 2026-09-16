@@ -1,0 +1,50 @@
+# Arkanoid / Breakout
+
+Vanilla browser Breakout clone. No package.json, bundler, framework, or tests. Game shell (`index.html` / `game.js`) not present yet; only atlas + audio assets.
+
+## Tech Stack
+- HTML5 + JavaScript ES6+ + Canvas 2D
+- Sprite atlas via `assets/assets/spritesheet.js` (globals: `loadSpritesheet`, `drawSprite`, `drawFrame`, `SPRITES`, `EXPLOSION_FRAMES`, `EXPLOSION_DURATION`)
+- Audio: `HTMLAudioElement` / `Audio` (mp3)
+- Zero npm/runtime deps
+
+## Commands
+```bash
+python3 -m http.server 8000
+# or: npx serve .
+# then open http://localhost:8000 (or 3000)
+```
+No build, test, or lint scripts. Static server required (Image/Audio from `file://` can fail).
+
+## Project Layout
+```
+/
+  README.md
+  skills-lock.json          # locked spec / spec-impl skills (Klerith/fernando-skills)
+  assets/assets/
+    spritesheet.js          # atlas API (do not rewrite coords)
+    spritesheet-breakout.png
+    sounds/
+      ball-bounce.mp3
+      break-sound.mp3
+  assets/__MACOSX/          # junk from zip extract; ignore
+```
+Expected future shell (sibling course games): `index.html` + `game.js` at repo root.
+
+`spritesheet.js` loads `assets/spritesheet-breakout.png` relative to the page URL. If the game is served from repo root, flatten or remap so that path resolves (today the PNG lives at `assets/assets/spritesheet-breakout.png`).
+
+## Code Standards
+- Match `spritesheet.js`: 2-space indent, single quotes, `const`/`let` (no `var`), spaces inside parens (`function foo( cb )`).
+- Draw via atlas helpers; do not hardcode `sx/sy/sw/sh` outside `spritesheet.js`.
+- Sprite names for `drawSprite`: `paddle`, `ball`, `block_<color>`.
+- Block/explosion colors: `gray`, `red`, `yellow`, `cyan`, `magenta`, `hotpink`, `green`.
+- Explosions: `EXPLOSION_FRAMES[color]` (4 frames), duration `EXPLOSION_DURATION` (150ms).
+- Prefer a `requestAnimationFrame` loop with `update(dt)` + `draw()` in one `game.js`; no modules unless asked.
+
+## Constraints
+- NEVER add frameworks (Phaser, Pixi, React), bundlers, TypeScript, or npm deps unless explicitly requested.
+- NEVER edit atlas coordinates or invent sprite names/colors not in `SPRITES` / `EXPLOSION_FRAMES`.
+- NEVER treat `__MACOSX/`, `.DS_Store`, or `*:Zone.Identifier` as source.
+- Keep classic Breakout: paddle, ball, brick grid, wall bounce, lose life on bottom miss, clear bricks to win.
+- Audio files: only `ball-bounce.mp3` and `break-sound.mp3` unless new assets are added.
+- ASCII-only in `.md` files (no tildes/accents). Do not invent a test/lint toolchain unless asked.

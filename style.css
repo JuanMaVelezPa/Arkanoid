@@ -1,0 +1,92 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #0f0f17;
+  color: #e0e0e0;
+  font-family: system-ui, -apple-system, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  user-select: none;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.hud {
+  display: flex;
+  justify-content: space-between;
+  width: 800px;
+}
+
+.hud-item {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.label {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: #555570;
+  font-weight: 600;
+}
+
+#score,
+#lives {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: #7aa2f7;
+}
+
+.stage {
+  position: relative;
+  width: 800px;
+  height: 600px;
+}
+
+#game {
+  display: block;
+  width: 800px;
+  height: 600px;
+  background: #1a1a25;
+  border: 1px solid #2a2a3a;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(10, 10, 20, 0.75);
+  text-align: center;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+#overlay-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: #e57373;
+}
+
+#overlay-msg {
+  font-size: 14px;
+  color: #7aa2f7;
+}

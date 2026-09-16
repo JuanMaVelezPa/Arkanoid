@@ -16,6 +16,8 @@ body {
 }
 
 .page {
+  --play-w: 800px;
+  --play-h: 600px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -25,13 +27,13 @@ body {
 .hud {
   display: flex;
   justify-content: space-between;
-  width: 800px;
+  width: var(--play-w);
 }
 
 .hud-item {
   display: flex;
   gap: 10px;
-  align-items: baseline;
+  align-items: center;
 }
 
 .label {
@@ -41,26 +43,49 @@ body {
   font-weight: 600;
 }
 
-#score,
-#lives {
+#score {
   font-family: 'Courier New', Courier, monospace;
   font-size: 22px;
   font-weight: 700;
   color: #7aa2f7;
+  letter-spacing: 1px;
+}
+
+.lives {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+
+.life {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, #2a2a38 0%, #16161f 70%);
+  box-shadow: inset 0 0 0 1px #323248;
+}
+
+.life.on {
+  background:
+    radial-gradient(circle at 32% 28%, #fff 0 16%, #d7e3f7 36%, #8ea4c8 68%, #5d6d88 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 0 10px rgba(170, 200, 240, 0.45);
 }
 
 .stage {
+  box-sizing: content-box;
   position: relative;
-  width: 800px;
-  height: 600px;
+  width: var(--play-w);
+  height: var(--play-h);
+  border: 1px solid #2a2a3a;
 }
 
 #game {
   display: block;
-  width: 800px;
-  height: 600px;
+  width: 100%;
+  height: 100%;
   background: #1a1a25;
-  border: 1px solid #2a2a3a;
 }
 
 .overlay {

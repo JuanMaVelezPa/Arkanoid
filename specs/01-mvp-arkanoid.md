@@ -1,6 +1,6 @@
 # SPEC 01 - Playable MVP Arkanoid
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** None
 > **Date:** 2026-09-16
 > **Objective:** Ship a playable browser Arkanoid MVP with one brick grid, lives, score, atlas sprites, sounds, and a desktop playfield that resizes with the window.
@@ -28,6 +28,8 @@
 - Frameworks, bundlers, TypeScript, npm deps.
 - Editing atlas coordinates in `spritesheet.js`.
 - README rewrite.
+
+
 
 ## Data model
 
@@ -81,22 +83,26 @@ Sounds: `assets/sounds/ball-bounce.mp3`, `assets/sounds/break-sound.mp3`.
 8. When no alive bricks remain, set `state` to `'win'`. Start overlay on load. Space or click on Win/Lose sets `state` to `'start'`. Space or click on Start resets score, lives, grid, paddle, glued ball, then `'playing'`. Manual test: clear grid -> Win; Space -> Start; Space -> new game; Lose path still works.
 9. Desktop resize: `CANVAS_W` / `CANVAS_H` are variables, not fixed. Base size `800x600`. On `window` `resize` (and once on load), fit the playfield into the available desktop page, cap at `800x600`. If the window is too narrow, shrink width and keep aspect `4:3`. Scale paddle, ball, brick size, and speeds by `SCALE = CANVAS_W / BASE_W`. Set `canvas.width` / `canvas.height` to the new world size. Recenter/rebuild the 13x6 grid, clamp the paddle, keep the ball inside the playfield. HUD and overlay follow the canvas width. Keyboard and mouse only. Manual test: shrink a desktop window below 800px without reload; the bitmap shrinks, the grid stays 13x6, mouse X still matches the paddle, play continues.
 
+
+
 ## Acceptance criteria
 
-- [ ] `python3 -m http.server 8000` (or `npx serve .`) loads the game with no missing atlas/sound 404s and no spritesheet error in the console.
-- [ ] Canvas bitmap is `800x600` when the desktop window can fit it. HUD shows score and lives in HTML, not on the canvas.
-- [ ] Shrinking a desktop window below 800px shrinks the canvas bitmap (world size), keeps aspect `4:3`, keeps a 13x6 grid, and maps mouse X to world X without a reload. No touch-specific UI.
-- [ ] Start overlay is visible on first load. Space or click hides it and starts a game with the ball glued.
-- [ ] Paddle moves with ArrowLeft/ArrowRight, KeyA/KeyD, and mouse X, and stays inside the canvas.
-- [ ] Space or click while glued launches the ball. Space/click is edge-triggered (one press does not start and launch in the same frame).
-- [ ] Ball bounces on left, right, and top. Paddle bounce angle depends on hit position.
-- [ ] Bottom miss with lives left: lives decrease by 1, score stays, ball glues to the paddle again.
-- [ ] Three bottom misses show the Lose overlay. Space or click returns to Start.
-- [ ] Grid is 13x6, colors `red yellow cyan magenta hotpink green` top to bottom, no gray.
-- [ ] Breaking a brick plays the 4-frame explosion, plays `break-sound.mp3`, and adds exactly 10 points.
-- [ ] `ball-bounce.mp3` plays on paddle, wall, and brick hits.
-- [ ] Clearing all bricks shows the Win overlay. Space or click returns to Start. Next Space or click starts a new game (3 lives, score 0, full grid).
-- [ ] No pause, no localStorage, no extra npm deps.
+- [x] `python3 -m http.server 8000` (or `npx serve .`) loads the game with no missing atlas/sound 404s and no spritesheet error in the console.
+- [x] Canvas bitmap is `800x600` when the desktop window can fit it. HUD shows score and lives in HTML, not on the canvas.
+- [x] Shrinking a desktop window below 800px shrinks the canvas bitmap (world size), keeps aspect `4:3`, keeps a 13x6 grid, and maps mouse X to world X without a reload. No touch-specific UI.
+- [x] Start overlay is visible on first load. Space or click hides it and starts a game with the ball glued.
+- [x] Paddle moves with ArrowLeft/ArrowRight, KeyA/KeyD, and mouse X, and stays inside the canvas.
+- [x] Space or click while glued launches the ball. Space/click is edge-triggered (one press does not start and launch in the same frame).
+- [x] Ball bounces on left, right, and top. Paddle bounce angle depends on hit position.
+- [x] Bottom miss with lives left: lives decrease by 1, score stays, ball glues to the paddle again.
+- [x] Three bottom misses show the Lose overlay. Space or click returns to Start.
+- [x] Grid is 13x6, colors `red yellow cyan magenta hotpink green` top to bottom, no gray.
+- [x] Breaking a brick plays the 4-frame explosion, plays `break-sound.mp3`, and adds exactly 10 points.
+- [x] `ball-bounce.mp3` plays on paddle, wall, and brick hits.
+- [x] Clearing all bricks shows the Win overlay. Space or click returns to Start. Next Space or click starts a new game (3 lives, score 0, full grid).
+- [x] No pause, no localStorage, no extra npm deps.
+
+
 
 ## Decisions
 
@@ -118,16 +124,22 @@ Sounds: `assets/sounds/ball-bounce.mp3`, `assets/sounds/break-sound.mp3`.
 - **No:** Pause, high scores, multiple levels, power-ups, frameworks.
 - **No:** Change atlas coordinates. Draw only through `spritesheet.js` helpers.
 
+
+
 ## Risks
 
-| Risk | Mitigation |
-| ---- | ---------- |
-| Atlas 404 if flatten is skipped | Step 1 is flatten first. Acceptance checks the network/console. |
-| `file://` blocks Image/Audio | Run a static server, not a raw file open. |
-| Audio autoplay blocked | First gesture is Start click/Space. Sounds run after that. |
-| Same keydown starts and serves | Use `justPressed` / click edge, not `keys.Space` held. |
-| Ball tunnels through bricks at high speed | AABB on the swept side. Clamp `dt`. Keep ball speed in a named constant. |
+
+| Risk                                           | Mitigation                                                                                                |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Atlas 404 if flatten is skipped                | Step 1 is flatten first. Acceptance checks the network/console.                                           |
+| `file://` blocks Image/Audio                   | Run a static server, not a raw file open.                                                                 |
+| Audio autoplay blocked                         | First gesture is Start click/Space. Sounds run after that.                                                |
+| Same keydown starts and serves                 | Use `justPressed` / click edge, not `keys.Space` held.                                                    |
+| Ball tunnels through bricks at high speed      | AABB on the swept side. Clamp `dt`. Keep ball speed in a named constant.                                  |
 | Resize mid-game desyncs grid, paddle, or mouse | Resize handler rebuilds layout from `SCALE`, clamps paddle, and remaps mouse via `getBoundingClientRect`. |
+
+
+
 
 ## What is **not** in this spec
 

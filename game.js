@@ -17,6 +17,7 @@ const BRICK_H = 16;
 const BRICK_TOP = 48;
 const ROW_COLORS = [ 'red', 'yellow', 'cyan', 'magenta', 'hotpink', 'green' ];
 const POINTS_PER_BRICK = 10;
+const START_LIVES = 3;
 const BALL_MAX_STEP = 8;
 
 const canvas = document.getElementById( 'game' );
@@ -26,10 +27,16 @@ const stage = canvas.parentElement;
 const bounceSound = new Audio( 'assets/sounds/ball-bounce.mp3' );
 const breakSound = new Audio( 'assets/sounds/break-sound.mp3' );
 const scoreEl = document.getElementById( 'score' );
+const livesEl = document.getElementById( 'lives' );
+const overlayEl = document.getElementById( 'overlay' );
+const overlayTitleEl = document.getElementById( 'overlay-title' );
+const overlayMsgEl = document.getElementById( 'overlay-msg' );
 
 const keys = Object.create( null );
 let serveQueued = false;
 let score = 0;
+let lives = START_LIVES;
+let state = 'playing';
 
 const paddle = {
   x: ( CANVAS_W - PADDLE_W ) / 2,
@@ -103,6 +110,30 @@ function playBreak() {
 
 function writeScore() {
   scoreEl.textContent = String( score );
+}
+
+function writeLives() {
+  livesEl.textContent = String( lives );
+}
+
+function showOverlay( title, msg ) {
+  overlayTitleEl.textContent = title;
+  overlayMsgEl.textContent = msg;
+  overlayEl.classList.remove( 'hidden' );
+}
+
+function missBall() {
+  lives -= 1;
+  writeLives();
+  if ( lives <= 0 ) {
+    lives = 0;
+    writeLives();
+    glueBall();
+    state = 'lose';
+    showOverlay( 'YOU LOSE', 'Press Space or click' );
+    return;
+  }
+  glueBall();
 }
 
 function spawnExplosion( brick ) {
@@ -210,7 +241,7 @@ function collideWalls() {
     ball.vy = Math.abs( ball.vy );
     playBounce();
   } else if ( ball.y + ball.h >= CANVAS_H ) {
-    glueBall();
+    missBall();
   }
 }
 
@@ -226,6 +257,11 @@ function stepBall( stepDt ) {
 }
 
 function update( dt ) {
+  if ( state === 'lose' ) {
+    consumeServe();
+    return;
+  }
+
   let dir = 0;
   if ( isHeld( 'ArrowLeft' ) || isHeld( 'KeyA' ) ) dir -= 1;
   if ( isHeld( 'ArrowRight' ) || isHeld( 'KeyD' ) ) dir += 1;
@@ -326,6 +362,8 @@ stage.addEventListener( 'click', () => {
 
 buildBricks();
 glueBall();
+writeScore();
+writeLives();
 
 loadSpritesheet( () => {
   requestAnimationFrame( loop );

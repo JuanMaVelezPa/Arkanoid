@@ -1,6 +1,6 @@
 # SPEC 01 - Playable MVP Arkanoid
 
-> **Status:** Draft
+> **Status:** Approved
 > **Depends on:** None
 > **Date:** 2026-09-16
 > **Objective:** Ship a playable browser Arkanoid MVP with one brick grid, lives, score, atlas sprites, and sounds.

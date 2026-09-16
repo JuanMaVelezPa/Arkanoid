@@ -10,6 +10,12 @@ const BALL_H = 16;
 const BALL_SPEED = 420;
 const SERVE_ANGLE = -Math.PI / 3;
 const MAX_BOUNCE_ANGLE = Math.PI * 0.4;
+const COLS = 13;
+const ROWS = 6;
+const BRICK_W = 32;
+const BRICK_H = 16;
+const BRICK_TOP = 48;
+const ROW_COLORS = [ 'red', 'yellow', 'cyan', 'magenta', 'hotpink', 'green' ];
 
 const canvas = document.getElementById( 'game' );
 const ctx = canvas.getContext( '2d' );
@@ -36,6 +42,27 @@ const ball = {
   vy: 0,
   glued: true,
 };
+
+const bricks = [];
+
+function buildBricks() {
+  bricks.length = 0;
+  const gridW = COLS * BRICK_W;
+  const offsetX = ( CANVAS_W - gridW ) / 2;
+  for ( let row = 0; row < ROWS; row++ ) {
+    const color = ROW_COLORS[ row ];
+    for ( let col = 0; col < COLS; col++ ) {
+      bricks.push( {
+        x: offsetX + col * BRICK_W,
+        y: BRICK_TOP + row * BRICK_H,
+        w: BRICK_W,
+        h: BRICK_H,
+        color: color,
+        alive: true,
+      } );
+    }
+  }
+}
 
 function clamp( value, min, max ) {
   return Math.max( min, Math.min( max, value ) );
@@ -140,8 +167,17 @@ function clearPlayfield() {
   ctx.fillRect( 0, 0, CANVAS_W, CANVAS_H );
 }
 
+function drawBricks() {
+  for ( let i = 0; i < bricks.length; i++ ) {
+    const brick = bricks[ i ];
+    if ( !brick.alive ) continue;
+    drawSprite( ctx, 'block_' + brick.color, brick.x, brick.y, brick.w, brick.h );
+  }
+}
+
 function draw() {
   clearPlayfield();
+  drawBricks();
   drawSprite( ctx, 'paddle', paddle.x, paddle.y, paddle.w, paddle.h );
   drawSprite( ctx, 'ball', ball.x, ball.y, ball.w, ball.h );
 }
@@ -181,6 +217,7 @@ stage.addEventListener( 'click', () => {
   serveQueued = true;
 } );
 
+buildBricks();
 glueBall();
 
 loadSpritesheet( () => {

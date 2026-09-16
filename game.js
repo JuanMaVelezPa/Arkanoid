@@ -36,7 +36,7 @@ const keys = Object.create( null );
 let serveQueued = false;
 let score = 0;
 let lives = START_LIVES;
-let state = 'playing';
+let state = 'start';
 
 const paddle = {
   x: ( CANVAS_W - PADDLE_W ) / 2,
@@ -120,6 +120,47 @@ function showOverlay( title, msg ) {
   overlayTitleEl.textContent = title;
   overlayMsgEl.textContent = msg;
   overlayEl.classList.remove( 'hidden' );
+}
+
+function hideOverlay() {
+  overlayEl.classList.add( 'hidden' );
+}
+
+function showStartOverlay() {
+  state = 'start';
+  showOverlay( 'ARKANOID', 'Press Space or click to start' );
+}
+
+function resetGame() {
+  score = 0;
+  lives = START_LIVES;
+  writeScore();
+  writeLives();
+  paddle.x = ( CANVAS_W - PADDLE_W ) / 2;
+  paddle.y = CANVAS_H - PADDLE_H;
+  explosions.length = 0;
+  buildBricks();
+  glueBall();
+}
+
+function startPlaying() {
+  resetGame();
+  state = 'playing';
+  hideOverlay();
+}
+
+function anyBricksAlive() {
+  for ( let i = 0; i < bricks.length; i++ ) {
+    if ( bricks[ i ].alive ) return true;
+  }
+  return false;
+}
+
+function checkWin() {
+  if ( state !== 'playing' ) return;
+  if ( anyBricksAlive() ) return;
+  state = 'win';
+  showOverlay( 'YOU WIN', 'Press Space or click' );
 }
 
 function missBall() {
@@ -213,6 +254,7 @@ function hitBrick( brick, prevX, prevY ) {
   playBreak();
   playBounce();
   reverseCollidingAxis( brick, prevX, prevY );
+  checkWin();
 }
 
 function collideBricks( prevX, prevY ) {
@@ -253,12 +295,20 @@ function stepBall( stepDt ) {
   collideWalls();
   if ( ball.glued ) return;
   collideBricks( prevX, prevY );
+  if ( state !== 'playing' ) return;
   if ( ball.vy > 0 && aabb( ball, paddle ) ) bounceOffPaddle();
 }
 
 function update( dt ) {
-  if ( state === 'lose' ) {
-    consumeServe();
+  const pressed = consumeServe();
+
+  if ( state === 'start' ) {
+    if ( pressed ) startPlaying();
+    return;
+  }
+
+  if ( state === 'win' || state === 'lose' ) {
+    if ( pressed ) showStartOverlay();
     return;
   }
 
@@ -270,11 +320,9 @@ function update( dt ) {
     clampPaddle();
   }
 
-  const serve = consumeServe();
-
   if ( ball.glued ) {
     stickBallToPaddle();
-    if ( serve ) launchBall();
+    if ( pressed ) launchBall();
     return;
   }
 
@@ -283,7 +331,7 @@ function update( dt ) {
   const stepDt = dt / steps;
   for ( let i = 0; i < steps; i++ ) {
     stepBall( stepDt );
-    if ( ball.glued ) return;
+    if ( ball.glued || state !== 'playing' ) return;
   }
 }
 
@@ -337,6 +385,7 @@ function loop( ts ) {
 }
 
 function onPointerMove( e ) {
+  if ( state !== 'playing' ) return;
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   paddle.x = ( e.clientX - rect.left ) * scaleX - paddle.w / 2;
@@ -364,6 +413,7 @@ buildBricks();
 glueBall();
 writeScore();
 writeLives();
+showStartOverlay();
 
 loadSpritesheet( () => {
   requestAnimationFrame( loop );

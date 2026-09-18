@@ -44,7 +44,9 @@ body {
 }
 
 #score,
-#level {
+#level,
+#wide,
+#slow {
   font-family: 'Courier New', Courier, monospace;
   font-size: 22px;
   font-weight: 700;

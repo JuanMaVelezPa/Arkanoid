@@ -13,55 +13,9 @@ const BALL_H = 16;
 const BALL_SPEED = 420;
 const SERVE_ANGLE = -Math.PI / 3;
 const MAX_BOUNCE_ANGLE = Math.PI * 0.4;
-const COLS = 13;
-const ROWS = 6;
 const BRICK_W = 32;
 const BRICK_H = 16;
 const BRICK_TOP = 48;
-const ROW_COLORS = [ 'red', 'yellow', 'cyan', 'magenta', 'hotpink', 'green' ];
-// X = brick, . = empty. Each string length is 13. Six rows per level.
-const LEVELS = [
-  [ // 1 full
-    'XXXXXXXXXXXXX',
-    'XXXXXXXXXXXXX',
-    'XXXXXXXXXXXXX',
-    'XXXXXXXXXXXXX',
-    'XXXXXXXXXXXXX',
-    'XXXXXXXXXXXXX'
-  ],
-  [ // 2 checker
-    'X.X.X.X.X.X.X',
-    '.X.X.X.X.X.X.',
-    'X.X.X.X.X.X.X',
-    '.X.X.X.X.X.X.',
-    'X.X.X.X.X.X.X',
-    '.X.X.X.X.X.X.'
-  ],
-  [ // 3 pyramid
-    '.....XXX.....',
-    '....XXXXX....',
-    '...XXXXXXX...',
-    '..XXXXXXXXX..',
-    '.XXXXXXXXXXX.',
-    'XXXXXXXXXXXXX'
-  ],
-  [ // 4 two banks
-    'XXXXX...XXXXX',
-    'XXXXX...XXXXX',
-    'XXXXX...XXXXX',
-    'XXXXX...XXXXX',
-    'XXXXX...XXXXX',
-    'XXXXX...XXXXX'
-  ],
-  [ // 5 sparse
-    'X.X.X.X.X.X.X',
-    '.............',
-    '.X.X.X.X.X.X.',
-    '.............',
-    'X.X.X.X.X.X.X',
-    '.............'
-  ]
-];
 const POINTS_PER_BRICK = 10;
 const START_LIVES = 3;
 const BALL_MAX_STEP = 8;
@@ -75,6 +29,8 @@ const bounceSound = new Audio( 'assets/sounds/ball-bounce.mp3' );
 const breakSound = new Audio( 'assets/sounds/break-sound.mp3' );
 const scoreEl = document.getElementById( 'score' );
 const levelEl = document.getElementById( 'level' );
+const wideEl = document.getElementById( 'wide' );
+const slowEl = document.getElementById( 'slow' );
 const livesEl = document.getElementById( 'lives' );
 const overlayEl = document.getElementById( 'overlay' );
 const overlayTitleEl = document.getElementById( 'overlay-title' );
@@ -359,6 +315,8 @@ function resetGame() {
   lives = START_LIVES;
   writeScore();
   writeLives();
+  wideEl.textContent = '--';
+  slowEl.textContent = '--';
   paddle.w = PADDLE_W * SCALE;
   paddle.h = PADDLE_H * SCALE;
   paddle.x = ( CANVAS_W - paddle.w ) / 2;

@@ -383,6 +383,10 @@ function anyBricksAlive() {
 function checkWin() {
   if ( state !== 'playing' ) return;
   if ( anyBricksAlive() ) return;
+  if ( level < 5 ) {
+    loadLevel( level + 1 );
+    return;
+  }
   state = 'win';
   showOverlay( 'YOU WIN', 'Press Space or click' );
 }
@@ -654,6 +658,13 @@ window.addEventListener( 'keydown', ( e ) => {
     if ( state === 'playing' ) pausePlaying();
     else if ( state === 'paused' ) resumePlaying();
     return;
+  }
+  if ( state === 'paused' && !e.repeat ) {
+    if ( e.key >= '1' && e.key <= '5' ) {
+      loadLevel( Number( e.key ) );
+      resumePlaying();
+      return;
+    }
   }
   if ( e.code === 'Space' && !e.repeat ) serveQueued = true;
 } );

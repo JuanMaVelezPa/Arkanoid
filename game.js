@@ -19,6 +19,49 @@ const BRICK_W = 32;
 const BRICK_H = 16;
 const BRICK_TOP = 48;
 const ROW_COLORS = [ 'red', 'yellow', 'cyan', 'magenta', 'hotpink', 'green' ];
+// X = brick, . = empty. Each string length is 13. Six rows per level.
+const LEVELS = [
+  [ // 1 full
+    'XXXXXXXXXXXXX',
+    'XXXXXXXXXXXXX',
+    'XXXXXXXXXXXXX',
+    'XXXXXXXXXXXXX',
+    'XXXXXXXXXXXXX',
+    'XXXXXXXXXXXXX'
+  ],
+  [ // 2 checker
+    'X.X.X.X.X.X.X',
+    '.X.X.X.X.X.X.',
+    'X.X.X.X.X.X.X',
+    '.X.X.X.X.X.X.',
+    'X.X.X.X.X.X.X',
+    '.X.X.X.X.X.X.'
+  ],
+  [ // 3 pyramid
+    '.....XXX.....',
+    '....XXXXX....',
+    '...XXXXXXX...',
+    '..XXXXXXXXX..',
+    '.XXXXXXXXXXX.',
+    'XXXXXXXXXXXXX'
+  ],
+  [ // 4 two banks
+    'XXXXX...XXXXX',
+    'XXXXX...XXXXX',
+    'XXXXX...XXXXX',
+    'XXXXX...XXXXX',
+    'XXXXX...XXXXX',
+    'XXXXX...XXXXX'
+  ],
+  [ // 5 sparse
+    'X.X.X.X.X.X.X',
+    '.............',
+    '.X.X.X.X.X.X.',
+    '.............',
+    'X.X.X.X.X.X.X',
+    '.............'
+  ]
+];
 const POINTS_PER_BRICK = 10;
 const START_LIVES = 3;
 const BALL_MAX_STEP = 8;
@@ -31,6 +74,7 @@ const pageEl = document.querySelector( '.page' );
 const bounceSound = new Audio( 'assets/sounds/ball-bounce.mp3' );
 const breakSound = new Audio( 'assets/sounds/break-sound.mp3' );
 const scoreEl = document.getElementById( 'score' );
+const levelEl = document.getElementById( 'level' );
 const livesEl = document.getElementById( 'lives' );
 const overlayEl = document.getElementById( 'overlay' );
 const overlayTitleEl = document.getElementById( 'overlay-title' );
@@ -40,6 +84,7 @@ const keys = Object.create( null );
 let serveQueued = false;
 let score = 0;
 let lives = START_LIVES;
+let level = 1;
 let state = 'start';
 
 const paddle = {
@@ -117,21 +162,24 @@ function keepBallInBounds() {
   ball.y = clamp( ball.y, 0, Math.max( 0, CANVAS_H - ball.h ) );
 }
 
+function currentPattern() {
+  return LEVELS[ level - 1 ];
+}
+
 function relayoutBricks() {
+  const pattern = currentPattern();
+  if ( !bricks.length ) {
+    buildBricksFromPattern( pattern );
+    return;
+  }
   const bw = BRICK_W * SCALE;
   const bh = BRICK_H * SCALE;
   const top = BRICK_TOP * SCALE;
   const offsetX = ( CANVAS_W - COLS * bw ) / 2;
-  if ( bricks.length !== COLS * ROWS ) {
-    buildBricks();
-    return;
-  }
   for ( let i = 0; i < bricks.length; i++ ) {
-    const row = Math.floor( i / COLS );
-    const col = i % COLS;
     const brick = bricks[ i ];
-    brick.x = offsetX + col * bw;
-    brick.y = top + row * bh;
+    brick.x = offsetX + brick.col * bw;
+    brick.y = top + brick.row * bh;
     brick.w = bw;
     brick.h = bh;
   }
@@ -179,7 +227,7 @@ function layoutPlayfield() {
   else keepBallInBounds();
 }
 
-function buildBricks() {
+function buildBricksFromPattern( pattern ) {
   bricks.length = 0;
   const bw = BRICK_W * SCALE;
   const bh = BRICK_H * SCALE;
@@ -187,7 +235,9 @@ function buildBricks() {
   const offsetX = ( CANVAS_W - COLS * bw ) / 2;
   for ( let row = 0; row < ROWS; row++ ) {
     const color = ROW_COLORS[ row ];
+    const line = pattern[ row ];
     for ( let col = 0; col < COLS; col++ ) {
+      if ( line[ col ] !== 'X' ) continue;
       bricks.push( {
         x: offsetX + col * bw,
         y: top + row * bh,
@@ -195,9 +245,15 @@ function buildBricks() {
         h: bh,
         color: color,
         alive: true,
+        row: row,
+        col: col,
       } );
     }
   }
+}
+
+function buildBricks() {
+  buildBricksFromPattern( LEVELS[ 0 ] );
 }
 
 function clamp( value, min, max ) {
@@ -235,6 +291,10 @@ function writeScore() {
   scoreEl.textContent = String( score );
 }
 
+function writeLevel() {
+  levelEl.textContent = String( level );
+}
+
 function writeLives() {
   if ( livesEl.children.length !== START_LIVES ) {
     livesEl.textContent = '';
@@ -268,8 +328,10 @@ function showStartOverlay() {
 function resetGame() {
   score = 0;
   lives = START_LIVES;
+  level = 1;
   writeScore();
   writeLives();
+  writeLevel();
   paddle.w = PADDLE_W * SCALE;
   paddle.h = PADDLE_H * SCALE;
   paddle.x = ( CANVAS_W - paddle.w ) / 2;

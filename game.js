@@ -101,6 +101,19 @@ function applyEntitySizes() {
     balls[ i ].w = BALL_W * SCALE;
     balls[ i ].h = BALL_H * SCALE;
   }
+  for ( let i = 0; i < shots.length; i++ ) {
+    shots[ i ].w = SHOT_W * SCALE;
+    shots[ i ].h = SHOT_H * SCALE;
+  }
+}
+
+function remapBalls( rx, ry ) {
+  for ( let i = 0; i < balls.length; i++ ) {
+    const ball = balls[ i ];
+    ball.x *= rx;
+    ball.y *= ry;
+  }
+  applyBallSpeed();
 }
 
 function measureFit() {
@@ -188,12 +201,7 @@ function layoutPlayfield() {
   paddle.x *= rx;
   paddle.y = CANVAS_H - paddle.h;
   applyPaddleWidth();
-  for ( let i = 0; i < balls.length; i++ ) {
-    const ball = balls[ i ];
-    ball.x *= rx;
-    ball.y *= ry;
-  }
-  applyBallSpeed();
+  remapBalls( rx, ry );
   for ( let i = 0; i < explosions.length; i++ ) {
     const exp = explosions[ i ];
     exp.x *= rx;
@@ -506,15 +514,19 @@ function reverseCollidingAxis( ball, brick, prevX, prevY ) {
   }
 }
 
-function hitBrick( ball, brick, prevX, prevY ) {
+function breakBrick( brick ) {
   brick.alive = false;
   spawnExplosion( brick );
   score += POINTS_PER_BRICK;
   writeScore();
   playBreak();
+  maybeSpawnPowerup( brick );
+}
+
+function hitBrick( ball, brick, prevX, prevY ) {
+  breakBrick( brick );
   playBounce();
   reverseCollidingAxis( ball, brick, prevX, prevY );
-  maybeSpawnPowerup( brick );
   checkWin();
 }
 
@@ -601,11 +613,15 @@ function update( dt ) {
   }
 
   updatePowerups( dt );
+  updateShots( dt );
   catchPowerups();
   tickEffects( dt );
 
   stickGluedBalls();
-  if ( pressed ) launchBall();
+  if ( pressed ) {
+    if ( effects.laserMs > 0 ) fireLaser();
+    else launchBall();
+  }
 
   const live = balls.slice();
   for ( let i = 0; i < live.length; i++ ) {
@@ -661,6 +677,7 @@ function draw( now ) {
     const ball = balls[ i ];
     drawSprite( ctx, 'ball', ball.x, ball.y, ball.w, ball.h );
   }
+  drawShots();
 }
 
 let lastTs = 0;

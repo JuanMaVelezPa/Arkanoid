@@ -8,6 +8,9 @@ const POWERUP_H = 16;
 const PADDLE_WIDE_MULT = 1.5;
 const BALL_SLOW_MULT = 0.7;
 const MULTI_SPREAD = 0.35;
+const SHOT_W = 4;
+const SHOT_H = 12;
+const SHOT_SPEED = 500;
 const POWERUP_TYPES = [ 'wide', 'slow', 'life', 'sticky', 'multi', 'laser' ];
 const POWERUP_LOOK = {
   wide: { fill: 'cyan', letter: 'W', ink: '#ffffff' },
@@ -22,6 +25,7 @@ const powerEl = document.getElementById( 'power' );
 
 let breaksInLevel = 0;
 const powerups = [];
+const shots = [];
 const effects = { wideMs: 0, slowMs: 0, stickyMs: 0, laserMs: 0 };
 
 function paddleBaseWidth() {
@@ -46,6 +50,7 @@ function writePowerHud() {
 
 function clearPowerups() {
   powerups.length = 0;
+  shots.length = 0;
   effects.wideMs = 0;
   effects.slowMs = 0;
   effects.stickyMs = 0;
@@ -93,6 +98,13 @@ function remapPowerups( rx, ry ) {
     drop.w *= rx;
     drop.h *= ry;
   }
+  for ( let i = 0; i < shots.length; i++ ) {
+    const shot = shots[ i ];
+    shot.x *= rx;
+    shot.y *= ry;
+    shot.w = SHOT_W * SCALE;
+    shot.h = SHOT_H * SCALE;
+  }
 }
 
 function catchPowerups() {
@@ -134,7 +146,14 @@ function activatePowerup( type ) {
     writePowerHud();
     return;
   }
-  if ( type === 'multi' ) activateMulti();
+  if ( type === 'multi' ) {
+    activateMulti();
+    return;
+  }
+  if ( type === 'laser' ) {
+    effects.laserMs = POWERUP_DURATION;
+    writePowerHud();
+  }
 }
 
 function anyGluedBall() {
@@ -199,6 +218,55 @@ function tickEffects( dt ) {
   if ( effects.stickyMs > 0 ) {
     effects.stickyMs = Math.max( 0, effects.stickyMs - dt * 1000 );
     writePowerHud();
+  }
+  if ( effects.laserMs > 0 ) {
+    effects.laserMs = Math.max( 0, effects.laserMs - dt * 1000 );
+    writePowerHud();
+  }
+}
+
+function fireLaser() {
+  if ( shots.length > 0 ) return;
+  const w = SHOT_W * SCALE;
+  const h = SHOT_H * SCALE;
+  shots.push( {
+    x: paddle.x + paddle.w / 2 - w / 2,
+    y: paddle.y - h,
+    w: w,
+    h: h,
+  } );
+}
+
+function collideShotBricks( shot ) {
+  for ( let i = 0; i < bricks.length; i++ ) {
+    const brick = bricks[ i ];
+    if ( !brick.alive ) continue;
+    if ( !aabb( shot, brick ) ) continue;
+    breakBrick( brick );
+    checkWin();
+    return true;
+  }
+  return false;
+}
+
+function updateShots( dt ) {
+  const rise = SHOT_SPEED * SCALE * dt;
+  let write = 0;
+  for ( let i = 0; i < shots.length; i++ ) {
+    const shot = shots[ i ];
+    shot.y -= rise;
+    if ( shot.y + shot.h < 0 ) continue;
+    if ( collideShotBricks( shot ) ) continue;
+    shots[ write++ ] = shot;
+  }
+  shots.length = write;
+}
+
+function drawShots() {
+  ctx.fillStyle = '#ffffff';
+  for ( let i = 0; i < shots.length; i++ ) {
+    const shot = shots[ i ];
+    ctx.fillRect( shot.x, shot.y, shot.w, shot.h );
   }
 }
 

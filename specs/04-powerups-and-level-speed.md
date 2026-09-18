@@ -1,6 +1,6 @@
 # SPEC 04 - Power-ups, levels.js, and per-level ball speed
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 01, SPEC 02, SPEC 03
 > **Date:** 2026-09-18
 > **Objective:** Move the five level patterns into `levels.js`, extract power-up logic into `powerups.js`, multiply ball speed by 1.15 per level, and drop one of six random capsules every 5 brick breaks.

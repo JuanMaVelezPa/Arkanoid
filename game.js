@@ -11,6 +11,7 @@ const PADDLE_SPEED = 500;
 const BALL_W = 16;
 const BALL_H = 16;
 const BALL_SPEED = 420;
+const LEVEL_SPEED_MULT = 1.15;
 const SERVE_ANGLE = -Math.PI / 3;
 const MAX_BOUNCE_ANGLE = Math.PI * 0.4;
 const BRICK_W = 32;
@@ -19,6 +20,12 @@ const BRICK_TOP = 48;
 const POINTS_PER_BRICK = 10;
 const START_LIVES = 3;
 const BALL_MAX_STEP = 8;
+const BREAKS_PER_DROP = 5;
+const POWERUP_FALL_SPEED = 180;
+const POWERUP_W = 32;
+const POWERUP_H = 16;
+const POWERUP_DURATION = 5000;
+const PADDLE_WIDE_MULT = 1.5;
 
 const canvas = document.getElementById( 'game' );
 const ctx = canvas.getContext( '2d' );
@@ -41,6 +48,7 @@ let serveQueued = false;
 let score = 0;
 let lives = START_LIVES;
 let level = 1;
+let breaksInLevel = 0;
 let state = 'start';
 let paused = false;
 
@@ -63,13 +71,15 @@ const ball = {
 
 const bricks = [];
 const explosions = [];
+const powerups = [];
+const effects = { wideMs: 0, slowMs: 0 };
 
 function scaledPaddleSpeed() {
   return PADDLE_SPEED * SCALE;
 }
 
-function scaledBallSpeed() {
-  return BALL_SPEED * SCALE;
+function levelBallSpeed() {
+  return BALL_SPEED * SCALE * ( LEVEL_SPEED_MULT ** ( level - 1 ) );
 }
 
 function scaledBallMaxStep() {
@@ -221,6 +231,31 @@ function clampPaddle() {
   paddle.x = clamp( paddle.x, 0, CANVAS_W - paddle.w );
 }
 
+function paddleBaseWidth() {
+  return PADDLE_W * SCALE;
+}
+
+function applyPaddleWidth() {
+  paddle.w = paddleBaseWidth() * ( effects.wideMs > 0 ? PADDLE_WIDE_MULT : 1 );
+  paddle.h = PADDLE_H * SCALE;
+  clampPaddle();
+}
+
+function writeWideHud() {
+  wideEl.textContent = effects.wideMs > 0
+    ? String( Math.ceil( effects.wideMs / 1000 ) )
+    : '--';
+}
+
+function clearPowerups() {
+  powerups.length = 0;
+  effects.wideMs = 0;
+  effects.slowMs = 0;
+  applyPaddleWidth();
+  wideEl.textContent = '--';
+  slowEl.textContent = '--';
+}
+
 function isHeld( code ) {
   return !!keys[ code ];
 }
@@ -306,6 +341,8 @@ function loadLevel( n ) {
   level = n;
   writeLevel();
   explosions.length = 0;
+  breaksInLevel = 0;
+  clearPowerups();
   buildBricksFromPattern( LEVELS[ n - 1 ] );
   glueBall();
 }
@@ -315,10 +352,7 @@ function resetGame() {
   lives = START_LIVES;
   writeScore();
   writeLives();
-  wideEl.textContent = '--';
-  slowEl.textContent = '--';
-  paddle.w = PADDLE_W * SCALE;
-  paddle.h = PADDLE_H * SCALE;
+  clearPowerups();
   paddle.x = ( CANVAS_W - paddle.w ) / 2;
   paddle.y = CANVAS_H - paddle.h;
   loadLevel( 1 );
@@ -347,21 +381,21 @@ function checkWin() {
     return;
   }
   state = 'win';
+  clearPowerups();
   showOverlay( 'YOU WIN', 'Press Space or click' );
 }
 
 function missBall() {
   lives -= 1;
   writeLives();
+  clearPowerups();
+  glueBall();
   if ( lives <= 0 ) {
     lives = 0;
     writeLives();
-    glueBall();
     state = 'lose';
     showOverlay( 'YOU LOSE', 'Press Space or click' );
-    return;
   }
-  glueBall();
 }
 
 function spawnExplosion( brick ) {
@@ -389,8 +423,9 @@ function stickBallToPaddle() {
 
 function launchBall() {
   ball.glued = false;
-  ball.vx = scaledBallSpeed() * Math.cos( SERVE_ANGLE );
-  ball.vy = scaledBallSpeed() * Math.sin( SERVE_ANGLE );
+  const speed = levelBallSpeed();
+  ball.vx = speed * Math.cos( SERVE_ANGLE );
+  ball.vy = speed * Math.sin( SERVE_ANGLE );
 }
 
 function aabb( a, b ) {
@@ -402,8 +437,9 @@ function bounceOffPaddle() {
   const paddleMid = paddle.x + paddle.w / 2;
   const offset = clamp( ( ballMid - paddleMid ) / ( paddle.w / 2 ), -1, 1 );
   const angle = offset * MAX_BOUNCE_ANGLE;
-  ball.vx = scaledBallSpeed() * Math.sin( angle );
-  ball.vy = -scaledBallSpeed() * Math.cos( angle );
+  const speed = levelBallSpeed();
+  ball.vx = speed * Math.sin( angle );
+  ball.vy = -speed * Math.cos( angle );
   ball.y = paddle.y - ball.h;
   playBounce();
 }
@@ -452,6 +488,21 @@ function reverseCollidingAxis( brick, prevX, prevY ) {
   }
 }
 
+function spawnPowerup( brick ) {
+  powerups.push( {
+    x: brick.x,
+    y: brick.y,
+    w: POWERUP_W * SCALE,
+    h: POWERUP_H * SCALE,
+    type: Math.random() < 0.5 ? 'wide' : 'slow',
+  } );
+}
+
+function maybeSpawnPowerup( brick ) {
+  breaksInLevel += 1;
+  if ( breaksInLevel % BREAKS_PER_DROP === 0 ) spawnPowerup( brick );
+}
+
 function hitBrick( brick, prevX, prevY ) {
   brick.alive = false;
   spawnExplosion( brick );
@@ -460,6 +511,7 @@ function hitBrick( brick, prevX, prevY ) {
   playBreak();
   playBounce();
   reverseCollidingAxis( brick, prevX, prevY );
+  maybeSpawnPowerup( brick );
   checkWin();
 }
 
@@ -538,6 +590,10 @@ function update( dt ) {
     clampPaddle();
   }
 
+  updatePowerups( dt );
+  catchWidePowerups();
+  tickWideEffect( dt );
+
   if ( ball.glued ) {
     stickBallToPaddle();
     if ( pressed ) launchBall();
@@ -566,6 +622,58 @@ function drawBricks() {
   }
 }
 
+function updatePowerups( dt ) {
+  const fall = POWERUP_FALL_SPEED * SCALE * dt;
+  let write = 0;
+  for ( let i = 0; i < powerups.length; i++ ) {
+    const drop = powerups[ i ];
+    drop.y += fall;
+    if ( drop.y > CANVAS_H ) continue;
+    powerups[ write++ ] = drop;
+  }
+  powerups.length = write;
+}
+
+function catchWidePowerups() {
+  let write = 0;
+  for ( let i = 0; i < powerups.length; i++ ) {
+    const drop = powerups[ i ];
+    if ( drop.type === 'wide' && aabb( paddle, drop ) ) {
+      playBounce();
+      effects.wideMs = POWERUP_DURATION;
+      applyPaddleWidth();
+      writeWideHud();
+      continue;
+    }
+    powerups[ write++ ] = drop;
+  }
+  powerups.length = write;
+}
+
+function tickWideEffect( dt ) {
+  if ( effects.wideMs <= 0 ) return;
+  effects.wideMs = Math.max( 0, effects.wideMs - dt * 1000 );
+  if ( effects.wideMs === 0 ) applyPaddleWidth();
+  writeWideHud();
+}
+
+function drawPowerups() {
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 1;
+  for ( let i = 0; i < powerups.length; i++ ) {
+    const drop = powerups[ i ];
+    const wide = drop.type === 'wide';
+    ctx.fillStyle = wide ? 'cyan' : 'yellow';
+    ctx.strokeStyle = '#000000';
+    ctx.fillRect( drop.x, drop.y, drop.w, drop.h );
+    ctx.strokeRect( drop.x, drop.y, drop.w, drop.h );
+    ctx.fillStyle = wide ? '#ffffff' : '#000000';
+    ctx.font = 'bold ' + Math.round( drop.h * 0.75 ) + 'px sans-serif';
+    ctx.fillText( wide ? 'W' : 'S', drop.x + drop.w / 2, drop.y + drop.h / 2 );
+  }
+}
+
 function drawExplosions( now ) {
   let write = 0;
   for ( let i = 0; i < explosions.length; i++ ) {
@@ -585,6 +693,7 @@ function draw( now ) {
   clearPlayfield();
   drawBricks();
   drawExplosions( now );
+  drawPowerups();
   drawSprite( ctx, 'paddle', paddle.x, paddle.y, paddle.w, paddle.h );
   drawSprite( ctx, 'ball', ball.x, ball.y, ball.w, ball.h );
 }

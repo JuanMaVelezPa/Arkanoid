@@ -1,6 +1,6 @@
 # SPEC 03 - Five levels, pause, and change level
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** SPEC 01, SPEC 02
 > **Date:** 2026-09-18
 > **Objective:** Add five brick-pattern levels with auto-advance, a LEVEL HUD, P pause, and keys 1-5 to jump level while paused.
@@ -120,18 +120,18 @@ const game = {
 
 - [x] HUD shows `LEVEL` and the current number `1`..`5`. `python3 -m http.server 8000` still loads with no new 404s.
 - [x] Start (first load or after Win/Lose) always begins level 1, score 0, lives 3, ball glued. Pattern is the full 13x6.
-- [ ] Levels 2-5 match the ASCII grids in the data model (checker, pyramid, two banks, sparse). Row colors unchanged. `.` cells have no brick.
-- [ ] Clearing levels 1-4 loads the next pattern immediately, glues the ball, keeps score and lives, updates `#level`. No extra overlay.
-- [ ] Clearing level 5 shows `YOU WIN` / `Press Space or click`. Next Space/click returns to Start. Next Space/click starts a new game at level 1.
-- [ ] Lose at 0 lives still shows `YOU LOSE` on any level. Space/click returns to Start.
-- [ ] P during `playing` shows `PAUSED` and the agreed msg, and freezes paddle, ball, bricks, and explosions.
-- [ ] P, Space, or click while paused resumes play and does not serve a glued ball on that same press.
-- [ ] P does nothing on Start, Win, and Lose.
-- [ ] Keys `1`..`5` do nothing unless paused. While paused they load that level, glue the ball, keep score and lives, hide overlay, and set `playing`.
-- [ ] Jumping to the level you are already on rebuilds that pattern (broken bricks come back).
-- [ ] Desktop resize mid-run rebuilds the current level pattern at the new `SCALE`, not a full 13x6.
-- [ ] SPEC 02 explosions still play on break while `playing`. Break still adds 10 points and plays `break-sound.mp3`.
-- [ ] No `levels.js`, no new audio, no localStorage, no pause on Start.
+- [x] Levels 2-5 match the ASCII grids in the data model (checker, pyramid, two banks, sparse). Row colors unchanged. `.` cells have no brick.
+- [x] Clearing levels 1-4 loads the next pattern immediately, glues the ball, keeps score and lives, updates `#level`. No extra overlay.
+- [x] Clearing level 5 shows `YOU WIN` / `Press Space or click`. Next Space/click returns to Start. Next Space/click starts a new game at level 1.
+- [x] Lose at 0 lives still shows `YOU LOSE` on any level. Space/click returns to Start.
+- [x] P during `playing` shows `PAUSED` and the agreed msg, and freezes paddle, ball, bricks, and explosions.
+- [x] P, Space, or click while paused resumes play and does not serve a glued ball on that same press.
+- [x] P does nothing on Start, Win, and Lose.
+- [x] Keys `1`..`5` do nothing unless paused. While paused they load that level, glue the ball, keep score and lives, hide overlay, and set `playing`.
+- [x] Jumping to the level you are already on rebuilds that pattern (broken bricks come back).
+- [x] Desktop resize mid-run rebuilds the current level pattern at the new `SCALE`, not a full 13x6.
+- [x] SPEC 02 explosions still play on break while `playing`. Break still adds 10 points and plays `break-sound.mp3`.
+- [x] No `levels.js`, no new audio, no localStorage, no pause on Start.
 
 
 

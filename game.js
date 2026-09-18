@@ -50,15 +50,19 @@ const paddle = {
   h: PADDLE_H,
 };
 
-const ball = {
-  x: 0,
-  y: 0,
-  w: BALL_W,
-  h: BALL_H,
-  vx: 0,
-  vy: 0,
-  glued: true,
-};
+const balls = [];
+
+function makeBall() {
+  return {
+    x: 0,
+    y: 0,
+    w: BALL_W * SCALE,
+    h: BALL_H * SCALE,
+    vx: 0,
+    vy: 0,
+    glued: true,
+  };
+}
 
 const bricks = [];
 const explosions = [];
@@ -76,12 +80,15 @@ function currentBallSpeed() {
 }
 
 function applyBallSpeed() {
-  if ( ball.glued ) return;
-  const mag = Math.hypot( ball.vx, ball.vy );
-  if ( mag === 0 ) return;
   const speed = currentBallSpeed();
-  ball.vx *= speed / mag;
-  ball.vy *= speed / mag;
+  for ( let i = 0; i < balls.length; i++ ) {
+    const ball = balls[ i ];
+    if ( ball.glued ) continue;
+    const mag = Math.hypot( ball.vx, ball.vy );
+    if ( mag === 0 ) continue;
+    ball.vx *= speed / mag;
+    ball.vy *= speed / mag;
+  }
 }
 
 function scaledBallMaxStep() {
@@ -90,8 +97,10 @@ function scaledBallMaxStep() {
 
 function applyEntitySizes() {
   applyPaddleWidth();
-  ball.w = BALL_W * SCALE;
-  ball.h = BALL_H * SCALE;
+  for ( let i = 0; i < balls.length; i++ ) {
+    balls[ i ].w = BALL_W * SCALE;
+    balls[ i ].h = BALL_H * SCALE;
+  }
 }
 
 function measureFit() {
@@ -125,7 +134,7 @@ function applyChromeSize() {
   pageEl.style.setProperty( '--play-h', CANVAS_H + 'px' );
 }
 
-function keepBallInBounds() {
+function keepBallInBounds( ball ) {
   ball.x = clamp( ball.x, 0, Math.max( 0, CANVAS_W - ball.w ) );
   ball.y = clamp( ball.y, 0, Math.max( 0, CANVAS_H - ball.h ) );
 }
@@ -162,7 +171,7 @@ function layoutPlayfield() {
     applyEntitySizes();
     paddle.y = CANVAS_H - paddle.h;
     clampPaddle();
-    if ( ball.glued ) stickBallToPaddle();
+    stickGluedBalls();
     return;
   }
 
@@ -179,8 +188,11 @@ function layoutPlayfield() {
   paddle.x *= rx;
   paddle.y = CANVAS_H - paddle.h;
   applyPaddleWidth();
-  ball.x *= rx;
-  ball.y *= ry;
+  for ( let i = 0; i < balls.length; i++ ) {
+    const ball = balls[ i ];
+    ball.x *= rx;
+    ball.y *= ry;
+  }
   applyBallSpeed();
   for ( let i = 0; i < explosions.length; i++ ) {
     const exp = explosions[ i ];
@@ -191,8 +203,10 @@ function layoutPlayfield() {
   }
   remapPowerups( rx, ry );
   relayoutBricks();
-  if ( ball.glued ) stickBallToPaddle();
-  else keepBallInBounds();
+  stickGluedBalls();
+  for ( let i = 0; i < balls.length; i++ ) {
+    if ( !balls[ i ].glued ) keepBallInBounds( balls[ i ] );
+  }
 }
 
 function buildBricksFromPattern( pattern ) {
@@ -386,29 +400,57 @@ function spawnExplosion( brick ) {
 }
 
 function glueBall() {
+  if ( balls.length === 0 ) balls.push( makeBall() );
+  balls.length = 1;
+  const ball = balls[ 0 ];
   ball.glued = true;
   ball.vx = 0;
   ball.vy = 0;
-  stickBallToPaddle();
+  stickBallToPaddle( ball );
 }
 
-function stickBallToPaddle() {
+function stickBallToPaddle( ball ) {
   ball.x = paddle.x + ( paddle.w - ball.w ) / 2;
   ball.y = paddle.y - ball.h;
 }
 
+function stickGluedBalls() {
+  for ( let i = 0; i < balls.length; i++ ) {
+    if ( balls[ i ].glued ) stickBallToPaddle( balls[ i ] );
+  }
+}
+
 function launchBall() {
-  ball.glued = false;
+  const glued = [];
+  for ( let i = 0; i < balls.length; i++ ) {
+    if ( balls[ i ].glued ) glued.push( balls[ i ] );
+  }
   const speed = currentBallSpeed();
-  ball.vx = speed * Math.cos( SERVE_ANGLE );
-  ball.vy = speed * Math.sin( SERVE_ANGLE );
+  for ( let i = 0; i < glued.length; i++ ) {
+    const ball = glued[ i ];
+    ball.glued = false;
+    let angle = SERVE_ANGLE;
+    if ( glued.length > 1 ) {
+      angle += ( i - ( glued.length - 1 ) / 2 ) * MULTI_SPREAD;
+    }
+    ball.vx = speed * Math.cos( angle );
+    ball.vy = speed * Math.sin( angle );
+  }
 }
 
 function aabb( a, b ) {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-function bounceOffPaddle() {
+function bounceOffPaddle( ball ) {
+  if ( effects.stickyMs > 0 ) {
+    ball.glued = true;
+    ball.vx = 0;
+    ball.vy = 0;
+    stickBallToPaddle( ball );
+    playBounce();
+    return;
+  }
   const ballMid = ball.x + ball.w / 2;
   const paddleMid = paddle.x + paddle.w / 2;
   const offset = clamp( ( ballMid - paddleMid ) / ( paddle.w / 2 ), -1, 1 );
@@ -420,14 +462,14 @@ function bounceOffPaddle() {
   playBounce();
 }
 
-function overlapAmount( axis, brick ) {
+function overlapAmount( ball, axis, brick ) {
   if ( axis === 'x' ) {
     return Math.min( ball.x + ball.w, brick.x + brick.w ) - Math.max( ball.x, brick.x );
   }
   return Math.min( ball.y + ball.h, brick.y + brick.h ) - Math.max( ball.y, brick.y );
 }
 
-function reverseCollidingAxis( brick, prevX, prevY ) {
+function reverseCollidingAxis( ball, brick, prevX, prevY ) {
   const fromLeft = prevX + ball.w <= brick.x;
   const fromRight = prevX >= brick.x + brick.w;
   const fromTop = prevY + ball.h <= brick.y;
@@ -436,11 +478,11 @@ function reverseCollidingAxis( brick, prevX, prevY ) {
   let hitX = fromLeft || fromRight;
   let hitY = fromTop || fromBottom;
   if ( hitX && hitY ) {
-    if ( overlapAmount( 'x', brick ) < overlapAmount( 'y', brick ) ) hitY = false;
+    if ( overlapAmount( ball, 'x', brick ) < overlapAmount( ball, 'y', brick ) ) hitY = false;
     else hitX = false;
   }
   if ( !hitX && !hitY ) {
-    hitX = overlapAmount( 'x', brick ) < overlapAmount( 'y', brick );
+    hitX = overlapAmount( ball, 'x', brick ) < overlapAmount( ball, 'y', brick );
     hitY = !hitX;
   }
 
@@ -464,29 +506,29 @@ function reverseCollidingAxis( brick, prevX, prevY ) {
   }
 }
 
-function hitBrick( brick, prevX, prevY ) {
+function hitBrick( ball, brick, prevX, prevY ) {
   brick.alive = false;
   spawnExplosion( brick );
   score += POINTS_PER_BRICK;
   writeScore();
   playBreak();
   playBounce();
-  reverseCollidingAxis( brick, prevX, prevY );
+  reverseCollidingAxis( ball, brick, prevX, prevY );
   maybeSpawnPowerup( brick );
   checkWin();
 }
 
-function collideBricks( prevX, prevY ) {
+function collideBricks( ball, prevX, prevY ) {
   for ( let i = 0; i < bricks.length; i++ ) {
     const brick = bricks[ i ];
     if ( !brick.alive ) continue;
     if ( !aabb( ball, brick ) ) continue;
-    hitBrick( brick, prevX, prevY );
+    hitBrick( ball, brick, prevX, prevY );
     return;
   }
 }
 
-function collideSideAndTopWalls() {
+function collideSideAndTopWalls( ball ) {
   if ( ball.x <= 0 ) {
     ball.x = 0;
     ball.vx = Math.abs( ball.vx );
@@ -504,24 +546,31 @@ function collideSideAndTopWalls() {
   }
 }
 
-function collidePaddleOrMiss() {
+function loseBall( ball ) {
+  const idx = balls.indexOf( ball );
+  if ( idx >= 0 ) balls.splice( idx, 1 );
+  writePowerHud();
+  if ( balls.length === 0 ) missBall();
+}
+
+function collidePaddleOrMiss( ball ) {
   if ( ball.vy > 0 && aabb( ball, paddle ) ) {
-    bounceOffPaddle();
+    bounceOffPaddle( ball );
     return;
   }
   if ( aabb( ball, paddle ) ) return;
-  if ( ball.y + ball.h >= CANVAS_H ) missBall();
+  if ( ball.y + ball.h >= CANVAS_H ) loseBall( ball );
 }
 
-function stepBall( stepDt ) {
+function stepBall( ball, stepDt ) {
   const prevX = ball.x;
   const prevY = ball.y;
   ball.x += ball.vx * stepDt;
   ball.y += ball.vy * stepDt;
-  collideSideAndTopWalls();
-  collideBricks( prevX, prevY );
+  collideSideAndTopWalls( ball );
+  collideBricks( ball, prevX, prevY );
   if ( state !== 'playing' || ball.glued ) return;
-  collidePaddleOrMiss();
+  collidePaddleOrMiss( ball );
 }
 
 function update( dt ) {
@@ -555,18 +604,22 @@ function update( dt ) {
   catchPowerups();
   tickEffects( dt );
 
-  if ( ball.glued ) {
-    stickBallToPaddle();
-    if ( pressed ) launchBall();
-    return;
-  }
+  stickGluedBalls();
+  if ( pressed ) launchBall();
 
-  const dist = Math.hypot( ball.vx * dt, ball.vy * dt );
-  const steps = Math.max( 1, Math.ceil( dist / scaledBallMaxStep() ) );
-  const stepDt = dt / steps;
-  for ( let i = 0; i < steps; i++ ) {
-    stepBall( stepDt );
-    if ( ball.glued || state !== 'playing' ) return;
+  const live = balls.slice();
+  for ( let i = 0; i < live.length; i++ ) {
+    const ball = live[ i ];
+    if ( balls.indexOf( ball ) < 0 ) continue;
+    if ( ball.glued ) continue;
+    const dist = Math.hypot( ball.vx * dt, ball.vy * dt );
+    const steps = Math.max( 1, Math.ceil( dist / scaledBallMaxStep() ) );
+    const stepDt = dt / steps;
+    for ( let s = 0; s < steps; s++ ) {
+      stepBall( ball, stepDt );
+      if ( state !== 'playing' ) return;
+      if ( ball.glued || balls.indexOf( ball ) < 0 ) break;
+    }
   }
 }
 
@@ -604,7 +657,10 @@ function draw( now ) {
   drawExplosions( now );
   drawPowerups();
   drawSprite( ctx, 'paddle', paddle.x, paddle.y, paddle.w, paddle.h );
-  drawSprite( ctx, 'ball', ball.x, ball.y, ball.w, ball.h );
+  for ( let i = 0; i < balls.length; i++ ) {
+    const ball = balls[ i ];
+    drawSprite( ctx, 'ball', ball.x, ball.y, ball.w, ball.h );
+  }
 }
 
 let lastTs = 0;

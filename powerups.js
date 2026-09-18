@@ -7,13 +7,22 @@ const POWERUP_W = 32;
 const POWERUP_H = 16;
 const PADDLE_WIDE_MULT = 1.5;
 const BALL_SLOW_MULT = 0.7;
+const MULTI_SPREAD = 0.35;
+const POWERUP_TYPES = [ 'wide', 'slow', 'life', 'sticky', 'multi', 'laser' ];
+const POWERUP_LOOK = {
+  wide: { fill: 'cyan', letter: 'W', ink: '#ffffff' },
+  slow: { fill: 'yellow', letter: 'S', ink: '#000000' },
+  life: { fill: 'green', letter: 'E', ink: '#000000' },
+  sticky: { fill: 'magenta', letter: 'T', ink: '#ffffff' },
+  multi: { fill: 'red', letter: 'M', ink: '#ffffff' },
+  laser: { fill: 'gray', letter: 'L', ink: '#ffffff' },
+};
 
-const wideEl = document.getElementById( 'wide' );
-const slowEl = document.getElementById( 'slow' );
+const powerEl = document.getElementById( 'power' );
 
 let breaksInLevel = 0;
 const powerups = [];
-const effects = { wideMs: 0, slowMs: 0 };
+const effects = { wideMs: 0, slowMs: 0, stickyMs: 0, laserMs: 0 };
 
 function paddleBaseWidth() {
   return PADDLE_W * SCALE;
@@ -25,26 +34,28 @@ function applyPaddleWidth() {
   clampPaddle();
 }
 
-function writeWideHud() {
-  wideEl.textContent = effects.wideMs > 0
-    ? String( Math.ceil( effects.wideMs / 1000 ) )
-    : '--';
-}
-
-function writeSlowHud() {
-  slowEl.textContent = effects.slowMs > 0
-    ? String( Math.ceil( effects.slowMs / 1000 ) )
-    : '--';
+function writePowerHud() {
+  const tokens = [];
+  if ( effects.wideMs > 0 ) tokens.push( 'W' + Math.ceil( effects.wideMs / 1000 ) );
+  if ( effects.slowMs > 0 ) tokens.push( 'S' + Math.ceil( effects.slowMs / 1000 ) );
+  if ( effects.stickyMs > 0 ) tokens.push( 'T' + Math.ceil( effects.stickyMs / 1000 ) );
+  if ( typeof balls !== 'undefined' && balls.length > 1 ) tokens.push( 'M' );
+  if ( effects.laserMs > 0 ) tokens.push( 'L' + Math.ceil( effects.laserMs / 1000 ) );
+  powerEl.textContent = tokens.length ? tokens.join( ' ' ) : '--';
 }
 
 function clearPowerups() {
   powerups.length = 0;
   effects.wideMs = 0;
   effects.slowMs = 0;
+  effects.stickyMs = 0;
+  effects.laserMs = 0;
   applyPaddleWidth();
+  if ( typeof balls !== 'undefined' && balls.length > 1 ) {
+    balls.length = 1;
+  }
   applyBallSpeed();
-  wideEl.textContent = '--';
-  slowEl.textContent = '--';
+  writePowerHud();
 }
 
 function spawnPowerup( brick ) {
@@ -53,7 +64,7 @@ function spawnPowerup( brick ) {
     y: brick.y,
     w: POWERUP_W * SCALE,
     h: POWERUP_H * SCALE,
-    type: Math.random() < 0.5 ? 'wide' : 'slow',
+    type: POWERUP_TYPES[ Math.floor( Math.random() * POWERUP_TYPES.length ) ],
   } );
 }
 
@@ -102,24 +113,92 @@ function activatePowerup( type ) {
   if ( type === 'wide' ) {
     effects.wideMs = POWERUP_DURATION;
     applyPaddleWidth();
-    writeWideHud();
+    writePowerHud();
     return;
   }
-  effects.slowMs = POWERUP_DURATION;
+  if ( type === 'slow' ) {
+    effects.slowMs = POWERUP_DURATION;
+    applyBallSpeed();
+    writePowerHud();
+    return;
+  }
+  if ( type === 'life' ) {
+    if ( lives < START_LIVES ) {
+      lives += 1;
+      writeLives();
+    }
+    return;
+  }
+  if ( type === 'sticky' ) {
+    effects.stickyMs = POWERUP_DURATION;
+    writePowerHud();
+    return;
+  }
+  if ( type === 'multi' ) activateMulti();
+}
+
+function anyGluedBall() {
+  for ( let i = 0; i < balls.length; i++ ) {
+    if ( balls[ i ].glued ) return true;
+  }
+  return false;
+}
+
+function cloneInFlightBall( src, heading, mag ) {
+  const extra = makeBall();
+  extra.x = src.x;
+  extra.y = src.y;
+  extra.w = src.w;
+  extra.h = src.h;
+  extra.glued = false;
+  extra.vx = mag * Math.cos( heading );
+  extra.vy = mag * Math.sin( heading );
+  return extra;
+}
+
+function activateMulti() {
+  if ( balls.length >= 3 ) return;
+  if ( anyGluedBall() ) {
+    while ( balls.length < 3 ) balls.push( makeBall() );
+    for ( let i = 0; i < balls.length; i++ ) {
+      balls[ i ].glued = true;
+      balls[ i ].vx = 0;
+      balls[ i ].vy = 0;
+      stickBallToPaddle( balls[ i ] );
+    }
+    writePowerHud();
+    return;
+  }
+  const src = balls[ 0 ];
+  const heading = Math.atan2( src.vy, src.vx );
+  const mag = Math.hypot( src.vx, src.vy ) || currentBallSpeed();
+  if ( balls.length === 1 ) {
+    balls.push( cloneInFlightBall( src, heading - MULTI_SPREAD, mag ) );
+    balls.push( cloneInFlightBall( src, heading + MULTI_SPREAD, mag ) );
+  } else {
+    while ( balls.length < 3 ) {
+      const offset = balls.length === 2 ? MULTI_SPREAD : -MULTI_SPREAD;
+      balls.push( cloneInFlightBall( src, heading + offset, mag ) );
+    }
+  }
   applyBallSpeed();
-  writeSlowHud();
+  writePowerHud();
 }
 
 function tickEffects( dt ) {
   if ( effects.wideMs > 0 ) {
     effects.wideMs = Math.max( 0, effects.wideMs - dt * 1000 );
     if ( effects.wideMs === 0 ) applyPaddleWidth();
-    writeWideHud();
+    writePowerHud();
   }
   if ( effects.slowMs > 0 ) {
     effects.slowMs = Math.max( 0, effects.slowMs - dt * 1000 );
     if ( effects.slowMs === 0 ) applyBallSpeed();
-    writeSlowHud();
+    writePowerHud();
+  }
+  if ( effects.stickyMs > 0 ) {
+    effects.stickyMs = Math.max( 0, effects.stickyMs - dt * 1000 );
+    writePowerHud();
   }
 }
 
@@ -129,13 +208,13 @@ function drawPowerups() {
   ctx.lineWidth = 1;
   for ( let i = 0; i < powerups.length; i++ ) {
     const drop = powerups[ i ];
-    const wide = drop.type === 'wide';
-    ctx.fillStyle = wide ? 'cyan' : 'yellow';
+    const look = POWERUP_LOOK[ drop.type ] || POWERUP_LOOK.slow;
+    ctx.fillStyle = look.fill;
     ctx.strokeStyle = '#000000';
     ctx.fillRect( drop.x, drop.y, drop.w, drop.h );
     ctx.strokeRect( drop.x, drop.y, drop.w, drop.h );
-    ctx.fillStyle = wide ? '#ffffff' : '#000000';
+    ctx.fillStyle = look.ink;
     ctx.font = 'bold ' + Math.round( drop.h * 0.75 ) + 'px sans-serif';
-    ctx.fillText( wide ? 'W' : 'S', drop.x + drop.w / 2, drop.y + drop.h / 2 );
+    ctx.fillText( look.letter, drop.x + drop.w / 2, drop.y + drop.h / 2 );
   }
 }

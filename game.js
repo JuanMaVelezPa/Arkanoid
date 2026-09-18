@@ -86,6 +86,7 @@ let score = 0;
 let lives = START_LIVES;
 let level = 1;
 let state = 'start';
+let paused = false;
 
 const paddle = {
   x: ( CANVAS_W - PADDLE_W ) / 2,
@@ -322,28 +323,53 @@ function hideOverlay() {
 
 function showStartOverlay() {
   state = 'start';
+  paused = false;
   showOverlay( 'ARKANOID', 'Press Space or click to start' );
+}
+
+function holdExplosionClocks( dt ) {
+  const ms = dt * 1000;
+  for ( let i = 0; i < explosions.length; i++ ) {
+    explosions[ i ].t0 += ms;
+  }
+}
+
+function pausePlaying() {
+  state = 'paused';
+  paused = true;
+  showOverlay( 'PAUSED', 'Esc, Space or click to resume. Keys 1-5 change level.' );
+}
+
+function resumePlaying() {
+  state = 'playing';
+  paused = false;
+  hideOverlay();
+}
+
+function loadLevel( n ) {
+  level = n;
+  writeLevel();
+  explosions.length = 0;
+  buildBricksFromPattern( LEVELS[ n - 1 ] );
+  glueBall();
 }
 
 function resetGame() {
   score = 0;
   lives = START_LIVES;
-  level = 1;
   writeScore();
   writeLives();
-  writeLevel();
   paddle.w = PADDLE_W * SCALE;
   paddle.h = PADDLE_H * SCALE;
   paddle.x = ( CANVAS_W - paddle.w ) / 2;
   paddle.y = CANVAS_H - paddle.h;
-  explosions.length = 0;
-  buildBricks();
-  glueBall();
+  loadLevel( 1 );
 }
 
 function startPlaying() {
   resetGame();
   state = 'playing';
+  paused = false;
   hideOverlay();
 }
 
@@ -535,6 +561,12 @@ function update( dt ) {
     return;
   }
 
+  if ( state === 'paused' ) {
+    if ( pressed ) resumePlaying();
+    else holdExplosionClocks( dt );
+    return;
+  }
+
   let dir = 0;
   if ( isHeld( 'ArrowLeft' ) || isHeld( 'KeyA' ) ) dir -= 1;
   if ( isHeld( 'ArrowRight' ) || isHeld( 'KeyD' ) ) dir += 1;
@@ -615,8 +647,13 @@ function onPointerMove( e ) {
 
 window.addEventListener( 'keydown', ( e ) => {
   keys[ e.code ] = true;
-  if ( e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Space' ) {
+  if ( e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Space' || e.code === 'Escape' ) {
     e.preventDefault();
+  }
+  if ( e.code === 'Escape' && !e.repeat ) {
+    if ( state === 'playing' ) pausePlaying();
+    else if ( state === 'paused' ) resumePlaying();
+    return;
   }
   if ( e.code === 'Space' && !e.repeat ) serveQueued = true;
 } );

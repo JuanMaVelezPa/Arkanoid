@@ -337,7 +337,7 @@ function holdExplosionClocks( dt ) {
 function pausePlaying() {
   state = 'paused';
   paused = true;
-  showOverlay( 'PAUSED', 'Esc, Space or click to resume. Keys 1-5 change level.' );
+  showOverlay( 'PAUSED', 'P, Space or click to resume. Keys 1-5 change level.' );
 }
 
 function resumePlaying() {
@@ -371,6 +371,7 @@ function startPlaying() {
   state = 'playing';
   paused = false;
   hideOverlay();
+  canvas.focus();
 }
 
 function anyBricksAlive() {
@@ -641,20 +642,16 @@ function loop( ts ) {
   requestAnimationFrame( loop );
 }
 
-function onPointerMove( e ) {
-  if ( state !== 'playing' ) return;
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  paddle.x = ( e.clientX - rect.left ) * scaleX - paddle.w / 2;
-  clampPaddle();
+function isPauseKey( e ) {
+  return e.code === 'KeyP' || e.key === 'p' || e.key === 'P' || e.keyCode === 80;
 }
 
-window.addEventListener( 'keydown', ( e ) => {
+function onKeyDown( e ) {
   keys[ e.code ] = true;
-  if ( e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Space' || e.code === 'Escape' ) {
+  if ( e.code === 'ArrowLeft' || e.code === 'ArrowRight' || e.code === 'Space' || isPauseKey( e ) ) {
     e.preventDefault();
   }
-  if ( e.code === 'Escape' && !e.repeat ) {
+  if ( isPauseKey( e ) && !e.repeat ) {
     if ( state === 'playing' ) pausePlaying();
     else if ( state === 'paused' ) resumePlaying();
     return;
@@ -666,14 +663,28 @@ window.addEventListener( 'keydown', ( e ) => {
       return;
     }
   }
-  if ( e.code === 'Space' && !e.repeat ) serveQueued = true;
-} );
+  if ( ( e.code === 'Space' || e.key === ' ' ) && !e.repeat ) serveQueued = true;
+}
 
-window.addEventListener( 'keyup', ( e ) => {
+function onKeyUp( e ) {
   keys[ e.code ] = false;
-} );
+}
+
+function onPointerMove( e ) {
+  if ( state !== 'playing' ) return;
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  paddle.x = ( e.clientX - rect.left ) * scaleX - paddle.w / 2;
+  clampPaddle();
+}
+
+document.addEventListener( 'keydown', onKeyDown, true );
+document.addEventListener( 'keyup', onKeyUp, true );
 
 stage.addEventListener( 'mousemove', onPointerMove );
+stage.addEventListener( 'pointerdown', () => {
+  canvas.focus();
+} );
 stage.addEventListener( 'click', () => {
   serveQueued = true;
 } );

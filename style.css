@@ -89,6 +89,10 @@ body {
   background: #1a1a25;
 }
 
+#game:focus {
+  outline: none;
+}
+
 .overlay {
   position: absolute;
   inset: 0;

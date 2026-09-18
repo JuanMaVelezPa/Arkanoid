@@ -3,17 +3,18 @@
 > **Status:** Approved
 > **Depends on:** SPEC 01, SPEC 02, SPEC 03
 > **Date:** 2026-09-18
-> **Objective:** Move the five level patterns into `levels.js`, multiply ball speed by 1.15 per level, and drop timed wide-paddle and slow-ball capsules every 5 brick breaks.
+> **Objective:** Move the five level patterns into `levels.js`, extract power-up drop/catch/effects into `powerups.js`, multiply ball speed by 1.15 per level, and drop timed wide-paddle and slow-ball capsules every 5 brick breaks.
 
 ## Why this spec exists
 
-SPEC 03 hardcoded `LEVELS` in `game.js` and deferred both power-ups and `levels.js`. This spec does those two deferred items together, plus the level speed rule, because they were requested as one feature.
+SPEC 03 hardcoded `LEVELS` in `game.js` and deferred both power-ups and `levels.js`. This spec does those two deferred items together, plus the level speed rule, because they were requested as one feature. Mid-impl, power-up code was moved to `powerups.js` so `game.js` stays the loop.
 
 ## Scope
 
 **In:**
 
-- New file `levels.js` at repo root. Move `LEVELS`, `COLS`, `ROWS`, and `ROW_COLORS` there as globals. Patterns stay the five SPEC 03 ASCII grids. Script order in `index.html`: `assets/spritesheet.js`, `levels.js`, `game.js`.
+- New file `levels.js` at repo root. Move `LEVELS`, `COLS`, `ROWS`, and `ROW_COLORS` there as globals. Patterns stay the five SPEC 03 ASCII grids.
+- New file `powerups.js` at repo root. Move power-up constants, `breaksInLevel`, `powerups`, `effects`, HUD writes for `#wide`/`#slow`, and the drop/catch/draw/tick/clear/remap helpers there as globals. `game.js` keeps the loop, bricks, paddle, ball, `levelBallSpeed`, `currentBallSpeed`, serve, and paddle bounce, and calls those helpers. Script order in `index.html`: `assets/spritesheet.js`, `levels.js`, `powerups.js`, `game.js`.
 - Ball speed on every `loadLevel(n)` (auto-next, pause keys 1-5, new game): `BALL_SPEED * SCALE * (1.15 ** (n - 1))`. Level 1 is the current base (`420 * SCALE`). Serve and paddle bounce use this speed unless slow is active.
 - Every 5 bricks broken in the current level, spawn one falling capsule at that brick's `x, y`. Size `32x16 * SCALE`. Fall speed `180` px/s `* SCALE`. Type is random 50/50 `wide` or `slow`. Counter resets to 0 on `loadLevel`. Several capsules may fall at once. Missed capsules that pass the bottom are deleted.
 - Catch = paddle AABB. Play `ball-bounce.mp3`. `wide`: paddle width `* 1.5`, then clamp X to the canvas. `slow`: ball speed `* 0.7` of the current level speed. Duration `5000` ms for both. Catching the same type restarts its timer. The other type may run in parallel.
@@ -24,7 +25,7 @@ SPEC 03 hardcoded `LEVELS` in `game.js` and deferred both power-ups and `levels.
 **Out of scope (for future specs):**
 
 - Extra life, sticky paddle, multi-ball, laser, or any third power-up type.
-- `powerups.js`, new overlay nodes, new audio files, atlas edits.
+- New overlay nodes, new audio files, atlas edits. ES modules.
 - High scores, localStorage, gray / multi-hit bricks, color score table.
 - Changing the five ASCII patterns. Touch controls.
 - Carrying active effects across levels or across a life miss.
@@ -32,7 +33,7 @@ SPEC 03 hardcoded `LEVELS` in `game.js` and deferred both power-ups and `levels.
 
 ## Data model
 
-Reuse SPEC 03 `game` in `game.js`. Move layout constants into `levels.js`. Add break counter, falling list, and remaining-ms timers.
+Reuse SPEC 03 `game` in `game.js`. Move layout constants into `levels.js`. Move power-up state and helpers into `powerups.js`. Speed formula stays in `game.js`.
 
 ```js
 // levels.js (globals)
@@ -41,9 +42,7 @@ const ROWS = 6;
 const ROW_COLORS = ['red', 'yellow', 'cyan', 'magenta', 'hotpink', 'green'];
 const LEVELS = [ /* same five 13x6 ASCII grids as SPEC 03 */ ];
 
-// game.js
-const BALL_SPEED = 420;
-const LEVEL_SPEED_MULT = 1.15;
+// powerups.js (globals)
 const BREAKS_PER_DROP = 5;
 const POWERUP_DURATION = 5000;
 const POWERUP_FALL_SPEED = 180;
@@ -51,6 +50,18 @@ const POWERUP_W = 32;
 const POWERUP_H = 16;
 const PADDLE_WIDE_MULT = 1.5;
 const BALL_SLOW_MULT = 0.7;
+let breaksInLevel = 0;
+const powerups = [/* { x, y, w, h, type } */]; // type: 'wide' | 'slow'
+const effects = { wideMs: 0, slowMs: 0 };
+// helpers: maybeSpawnPowerup, updatePowerups, catchPowerups,
+// tickEffects, drawPowerups, clearPowerups, remapPowerups,
+// paddleBaseWidth, applyPaddleWidth
+// Helpers may read game.js globals (SCALE, paddle, ball, ctx, aabb, playBounce)
+// at call time. No ES modules.
+
+// game.js
+const BALL_SPEED = 420;
+const LEVEL_SPEED_MULT = 1.15;
 
 const game = {
   state: 'start', // 'start' | 'playing' | 'paused' | 'win' | 'lose'
@@ -58,13 +69,10 @@ const game = {
   paused: false,
   score: 0,
   lives: 3,
-  breaksInLevel: 0,
   paddle: { x: 0, y: 0, w: PADDLE_W, h: PADDLE_H },
   ball: { x: 0, y: 0, w: BALL_W, h: BALL_H, vx: 0, vy: 0, glued: true },
   bricks: [/* { x, y, w, h, color, alive } */],
   explosions: [/* { x, y, w, h, color, t0 } */],
-  powerups: [/* { x, y, w, h, type } */], // type: 'wide' | 'slow'
-  effects: { wideMs: 0, slowMs: 0 },
 };
 ```
 
@@ -95,10 +103,13 @@ const game = {
 
 7. On desktop resize, remap each falling capsule `x, y, w, h` by the SCALE ratio (same idea as SPEC 01 explosions). Re-apply current paddle width from `wideMs` and clamp X. Ball velocity keeps direction and uses `currentBallSpeed()` at the new SCALE. Manual test: resize with a falling capsule and an active wide paddle; both stay on-world and play continues.
 
+8. Create `powerups.js` with the power-up constants, `breaksInLevel`, `powerups`, `effects`, `#wide`/`#slow` HUD writes, and the drop/catch/draw/tick/clear/remap helpers (plus `paddleBaseWidth` / `applyPaddleWidth`). Remove those bindings from `game.js`. In `index.html`, add `<script src="powerups.js"></script>` between `levels.js` and `game.js`. `levelBallSpeed`, `currentBallSpeed`, `applyBallSpeed`, serve, and paddle bounce stay in `game.js`. Manual test: play is unchanged from step 7; `powerups.js` is 200, no new 404.
+
 ## Acceptance criteria
 
-- [ ] `python3 -m http.server 8000` loads with `levels.js` (no 404) and no spritesheet error. The five patterns still match SPEC 03.
+- [ ] `python3 -m http.server 8000` loads with `levels.js` and `powerups.js` (no 404) and no spritesheet error. The five patterns still match SPEC 03.
 - [ ] `LEVELS`, `COLS`, `ROWS`, and `ROW_COLORS` live in `levels.js`. They are not redeclared in `game.js`.
+- [ ] Power-up constants, `breaksInLevel`, `powerups`, `effects`, and the drop/catch/draw/tick/clear/remap helpers live in `powerups.js`. They are not redeclared in `game.js`. Script order is `spritesheet.js`, `levels.js`, `powerups.js`, `game.js`.
 - [ ] Level 1 ball speed equals today's `BALL_SPEED * SCALE`. Level n uses `* (1.15 ** (n - 1))` on auto-next, pause keys 1-5, and a glued serve after `loadLevel`.
 - [ ] New game (Start after Win/Lose) is level 1 at base speed, score 0, lives 3.
 - [ ] The 5th, 10th, 15th, ... brick broken in the current level drops one capsule. The counter resets on `loadLevel`.
@@ -113,12 +124,13 @@ const game = {
 - [ ] `loadLevel`, new game, life miss, Win, and Lose clear falling capsules and both effects (paddle and ball back to non-power-up sizes/speeds for that moment).
 - [ ] Draw order: bricks, explosions, capsules, paddle, ball. Capsules are canvas fills with `W` / `S`, not atlas sprites.
 - [ ] Resize remaps falling capsules and the wide paddle at the new `SCALE`.
-- [ ] SPEC 02 explosions, +10 score, and `break-sound.mp3` on break still work. No new mp3s. `spritesheet.js` is unchanged. No `powerups.js`.
+- [ ] SPEC 02 explosions, +10 score, and `break-sound.mp3` on break still work. No new mp3s. `spritesheet.js` is unchanged. No ES modules.
 
 ## Decisions
 
 - **Yes:** One spec for `levels.js` + 15% speed + power-ups. User rejected a split into SPEC 04 / SPEC 05.
-- **No:** Separate `powerups.js`. Level info is the extracted file; drop/catch/effects stay in `game.js`.
+- **Yes:** Separate `powerups.js` (mid-impl amendment). User wants drop/catch/effects out of `game.js` so the loop file is easier to read. Same global-script pattern as `levels.js`. No ES modules.
+- **Yes:** `powerups.js` owns constants, falling list, timers, HUD writes for `#wide`/`#slow`, and helpers. `game.js` keeps `levelBallSpeed` / `currentBallSpeed` / serve / paddle bounce and calls the helpers.
 - **Yes:** Move `LEVELS`, `COLS`, `ROWS`, `ROW_COLORS` to `levels.js` so the grid contract lives in one file. Speed formula stays in `game.js`.
 - **No:** Per-level speed table inside `levels.js`. Compound `1.15 ** (level - 1)` is enough.
 - **Yes:** Compound multiplier on every `loadLevel`, including pause jump 1-5. Jump to 5 is immediately faster.
@@ -151,11 +163,12 @@ const game = {
 | Timestamp-based expiry keeps running during pause | Store remaining ms; subtract only while `state === 'playing'`. |
 | Resize mid-fall desyncs capsules | Remap `x,y,w,h` by the SCALE ratio, same as explosions. |
 | Sparse level 5 has few bricks so few drops | Accepted. Counter is per level by design. |
+| `powerups.js` loads before `game.js` so it cannot read `SCALE` at parse time | Helpers read `SCALE`, paddle, ball, and `ctx` at call time only. |
 
 ## What is **not** in this spec
 
 - Extra life, sticky paddle, multi-ball, laser, or other power-up types.
-- `powerups.js`, new audio, atlas edits, new overlay markup.
+- New audio, atlas edits, new overlay markup, ES modules.
 - High scores, localStorage, gray / multi-hit bricks.
 - Pattern changes to the five SPEC 03 grids.
 - Carrying power-ups across levels or life misses.
